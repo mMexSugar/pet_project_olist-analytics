@@ -3,18 +3,18 @@ provider "google" {
   region  = var.region
 }
 
-resource "google_storage_bucket" "data_lake_buckets" {
-  for_each      = toset(["landing", "bronze", "silver", "gold"])
-  name          = "${var.project_id}-${each.key}"
-  location      = var.region
-  force_destroy = true
-
-  uniform_bucket_level_access = true
+moved {
+  from = google_storage_bucket.data_lake_buckets
+  to   = module.storage.google_storage_bucket.data_lake_buckets
+}
+module "storage" {
+  source     = "../../modules/storage"
+  project_id = var.project_id
+  region     = var.region
 }
 
-resource "google_storage_bucket" "code_bucket" {
-  name          = "${var.project_id}-code"
-  location      = var.region
-  force_destroy = true
-  uniform_bucket_level_access = true
+module "compute" {
+  source     = "../../modules/compute"
+  project_id = var.project_id
+  region     = var.region
 }
