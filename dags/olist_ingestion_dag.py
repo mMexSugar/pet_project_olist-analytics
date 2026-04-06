@@ -1,5 +1,6 @@
 from airflow import DAG
-from airflow.providers.google.cloud.operators.dataflow import DataflowStartPythonOperator
+from airflow.providers.apache.beam.operators.beam import BeamRunPythonPipelineOperator
+from airflow.providers.google.cloud.operators.dataflow import DataflowConfiguration
 from datetime import datetime, timedelta
 
 # Список твоих таблиц
@@ -30,19 +31,27 @@ with DAG(
 ) as dag:
 
     for table in TABLES:
-        process_table = DataflowStartPythonOperator(
+        process_table = BeamRunPythonPipelineOperator(
             task_id=f'ingest_{table}',
             py_file=CODE_PATH,
-            job_name=f'olist-ingest-{table.replace("_", "-")}',
-            options={
+            pipeline_options={
                 'table': table,
                 'input': f'gs://{PROJECT_ID}-landing/olist_{table}_dataset.csv',
                 'output': f'gs://{PROJECT_ID}-bronze/{table}/{table}',
                 'region': REGION,
                 'project': PROJECT_ID,
                 'temp_location': f'gs://{PROJECT_ID}-landing/temp',
+                'requirements_file': f"gs://{PROJECT_ID}-code/requirements.txt",
             },
-            # Ждать ли завершения задачи в Dataflow перед тем как считать task в Airflow успешным
-            wait_until_finished=True, 
-            location=REGION,
+            # Настройки инфраструктуры Dataflow
+            py_options=[],
+            py_interpreter='python3',
+            py_system_site_packages=False,
+            runner='DataflowRunner',
+            dataflow_config=DataflowConfiguration(
+                job_name=f'olist-ingest-{table.replace("_", "-")}',
+                project_id=PROJECT_ID,
+                location=REGION,
+                wait_until_finished=True,
+            )
         )
