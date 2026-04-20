@@ -17,6 +17,36 @@ resource "google_project_iam_member" "composer_agent_v2_ext" {
   member  = "serviceAccount:service-${data.google_project.project.number}@cloudcomposer-accounts.iam.gserviceaccount.com"
 }
 
+resource "google_project_iam_member" "composer_dataflow_developer" {
+  project = var.project_id
+  role    = "roles/dataflow.developer"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
+resource "google_project_iam_member" "composer_dataflow_worker" {
+  project = var.project_id
+  role    = "roles/dataflow.worker"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
+resource "google_project_iam_member" "dataflow_worker_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectUser"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "composer_storage_user" {
+  project = var.project_id
+  role    = "roles/storage.objectUser"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
+resource "google_service_account_iam_member" "composer_sa_user_self" {
+  service_account_id = google_service_account.composer_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
 resource "google_composer_environment" "olist_composer" {
   name   = "olist-orchestrator"
   region = var.region
@@ -27,6 +57,8 @@ resource "google_composer_environment" "olist_composer" {
     }
     software_config {
       image_version = "composer-2.16.9-airflow-2.10.5"
+
+      pypi_packages = { }
     }
 
     environment_size = "ENVIRONMENT_SIZE_SMALL"

@@ -98,14 +98,14 @@ TABLE_SCHEMAS = {
 class ParseCSVRow(beam.DoFn):
     def __init__(self, table_name):
         self.table_name = table_name
+        self.columns = TABLE_SCHEMAS[table_name].names
 
     def process(self, element):
         try:
             f = io.StringIO(element)
             reader = csv.reader(f, delimiter=',')
             for row in reader:
-                columns = TABLE_SCHEMAS[self.table_name].names
-                yield dict(zip(columns, row))
+                yield dict(zip(self.columns, row))
         except Exception as e:
             logging.error(f"Ошибка в {self.table_name}: {e}")
 
@@ -150,10 +150,7 @@ def run(argv=None):
     if args.table not in TABLE_SCHEMAS:
         raise ValueError(f"Таблица {args.table} не найдена!")
 
-    pipeline_options = PipelineOptions(beam_args, save_main_session=True)
-    
-    columns = TABLE_SCHEMAS[args.table]['columns']
-    parquet_schema = pa.schema([(col, pa.string()) for col in columns])
+    pipeline_options = PipelineOptions(beam_args, save_main_session=False)
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
