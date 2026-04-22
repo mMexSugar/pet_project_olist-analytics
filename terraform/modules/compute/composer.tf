@@ -47,6 +47,24 @@ resource "google_service_account_iam_member" "composer_sa_user_self" {
   member             = "serviceAccount:${google_service_account.composer_sa.email}"
 }
 
+resource "google_project_iam_member" "composer_artifact_registry_reader" {
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
+resource "google_project_iam_member" "composer_bigquery_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
+resource "google_project_iam_member" "composer_bigquery_data_editor" {
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.composer_sa.email}"
+}
+
 resource "google_composer_environment" "olist_composer" {
   name   = "olist-orchestrator"
   region = var.region
