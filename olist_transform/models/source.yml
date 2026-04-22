@@ -1,0 +1,16 @@
+
+version: 2
+
+sources:
+  - name: olist_bronze
+    database: olist-analytics-492311
+    schema: olist_bronze
+    tables:
+      - name: customers
+      - name: geolocation
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: order_reviews
+      - name: products
+      - name: sellers

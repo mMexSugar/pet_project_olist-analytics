@@ -87,28 +87,31 @@ TABLE_SCHEMAS = {
         ('seller_zip_code_prefix', T_STR),
         ('seller_city', T_STR),
         ('seller_state', T_STR)
-    ]),
-    
-    'category_translation': pa.schema([
-        ('product_category_name', T_STR),
-        ('product_category_name_english', T_STR)
     ])
 }
 
 class ParseCSVRow(beam.DoFn):
     def __init__(self, table_name):
         self.table_name = table_name
-        self.columns = TABLE_SCHEMAS[table_name].names
+        # Вынесем схему в переменную, чтобы проверить её наличие
+        self.column_names = TABLE_SCHEMAS[table_name].names
 
     def process(self, element):
         try:
             f = io.StringIO(element)
             reader = csv.reader(f, delimiter=',')
             for row in reader:
-                yield dict(zip(self.columns, row))
+                # ГЛАВНАЯ ПРОВЕРКА: совпадает ли кол-во колонок?
+                if len(row) != len(self.column_names):
+                    # Логируем только первые 10 ошибок, чтобы не забить память
+                    logging.warning(f"Мисматч колонок в {self.table_name}: в схеме {len(self.column_names)}, в строке {len(row)}. Строка: {row}")
+                    continue 
+                
+                yield dict(zip(self.column_names, row))
+                
         except Exception as e:
-            logging.error(f"Ошибка в {self.table_name}: {e}")
-
+            # Выводим полный стек ошибки, чтобы понять, что упало
+            logging.error(f"Критическая ошибка парсинга в {self.table_name}: {str(e)}", exc_info=True)
 class TypeCastingDoFn(beam.DoFn):
     def __init__(self, table_name):
         self.table_name = table_name
@@ -117,28 +120,33 @@ class TypeCastingDoFn(beam.DoFn):
         schema = TABLE_SCHEMAS[self.table_name]
         typed_row = {}
 
-        for field in schema:
-            name = field.name
-            target_type = field.type
-            val = element.get(name)
+        try:
+            for field in schema:
+                name = field.name
+                target_type = field.type
+                val = element.get(name)
 
-            if val is None or val == '':
-                typed_row[name] = None
-                continue
+                if val is None or val == '' or val == 'None':
+                    typed_row[name] = None
+                    continue
 
-            try:
-                if target_type == pa.int64():
+                if pa.types.is_integer(target_type):
                     typed_row[name] = int(float(val))
-                elif target_type == pa.float64():
+                elif pa.types.is_floating(target_type):
                     typed_row[name] = float(val)
-                elif target_type == pa.timestamp('s'):
-                    typed_row[name] = datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
+                elif pa.types.is_timestamp(target_type):
+                    try:
+                        typed_row[name] = datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
+                    except ValueError:
+                        typed_row[name] = datetime.strptime(val, '%Y-%m-%d')
                 else:
                     typed_row[name] = str(val)
-            except Exception:
-                typed_row[name] = None
 
-        yield typed_row
+            yield typed_row
+
+        except Exception as e:
+            # Если хоть одна строка упадет критично - мы увидим это в логах
+            logging.error(f"Error casting row in {self.table_name}: {e} | Row: {element}")
 
 def run(argv=None):
     parser = argparse.ArgumentParser()
@@ -150,7 +158,7 @@ def run(argv=None):
     if args.table not in TABLE_SCHEMAS:
         raise ValueError(f"Таблица {args.table} не найдена!")
 
-    pipeline_options = PipelineOptions(beam_args, save_main_session=False)
+    pipeline_options = PipelineOptions(beam_args, save_main_session=True)
 
     with beam.Pipeline(options=pipeline_options) as p:
         (
