@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: "Центральная таблица фактов с данными о заказах, оплатах и доставке."
+    columns:
+      - name: order_id
+        description: "Первичный ключ таблицы."
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_unique_id
+        description: "Уникальный ID клиента (из dim_customers)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_unique_id
+
+      - name: status
+        description: "Текущий статус заказа."
+        tests:
+          - accepted_values:
+              values: ['delivered', 'shipped', 'canceled', 'invoiced', 'processing', 'approved', 'unavailable', 'created']
+
+      - name: total_order_value
+        description: "Общая сумма заказа (товары + доставка)."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+  - name: dim_customers
+    columns:
+      - name: customer_unique_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_products
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
